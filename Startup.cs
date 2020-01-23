@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using BooksCatalogue.Models;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.AzureADB2C.UI;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpsPolicy;
@@ -27,6 +29,9 @@ namespace BooksCatalogue
         {
             services.AddControllersWithViews();
             services.Configure<AzureSearchService>(Configuration.GetSection("AzureSearchService"));
+            services.Configure<AzureADB2CWithApiOptions>(Configuration.GetSection("AzureADB2C"));
+            services.AddAuthentication(AzureADB2CDefaults.AuthenticationScheme)
+                .AddAzureADB2C(options => Configuration.Bind("AzureADB2C", options));
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -47,6 +52,7 @@ namespace BooksCatalogue
 
             app.UseRouting();
 
+            app.UseAuthentication();
             app.UseAuthorization();
 
             app.UseEndpoints(endpoints =>
@@ -54,6 +60,7 @@ namespace BooksCatalogue
                 endpoints.MapControllerRoute(
                     name: "default",
                     pattern: "{controller=Books}/{action=Index}/{id?}");
+                endpoints.MapRazorPages();
             });
         }
     }

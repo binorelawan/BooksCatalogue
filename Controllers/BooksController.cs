@@ -11,8 +11,11 @@ using System.Net.Http;
 using System.Net;
 using System.Text.Json;
 using System;
+using System.Net.Http.Headers;
+using System.Security.Claims;
 using Microsoft.Azure.Search;
 using Microsoft.Azure.Search.Models;
+using Microsoft.Identity.Client;
 
 namespace BooksCatalogue.Controllers
 {
@@ -21,12 +24,14 @@ namespace BooksCatalogue.Controllers
         private string apiEndpoint = "https://bookscatalogueapi-dicoding.azurewebsites.net/api/books/";
         // private string apiEndpoint = "https://localhost:8000/api/books/";
         // HttpClientHandler clientHandler = new HttpClientHandler();
-        private readonly AzureSearchService searchOptions = null;
-        public BooksController(IOptions<AzureSearchService> _searchOptions)
+        private readonly AzureSearchService searchOptions;
+        private readonly AzureADB2CWithApiOptions adb2cOptions;
+        public BooksController(IOptions<AzureSearchService> _searchOptions, IOptions<AzureADB2CWithApiOptions> _adb2cOptions)
         {
             // Use this client handler to bypass ssl policy errors
             // clientHandler.ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) => { return true; };
             searchOptions = _searchOptions.Value;
+            adb2cOptions = _adb2cOptions.Value;
         }
 
         // GET: Books
@@ -56,8 +61,23 @@ namespace BooksCatalogue.Controllers
                 return NotFound();
             }
 
+            var scope = adb2cOptions.ApiScopes.Split(' ');
+            string userId = HttpContext.User.FindFirst(ClaimTypes.NameIdentifier).Value;
+            var confidentialClientApplication = ConfidentialClientApplicationBuilder.Create(adb2cOptions.ClientId)
+                .WithClientSecret(adb2cOptions.ClientSecret)
+                .WithB2CAuthority(adb2cOptions.Authority)
+                .WithRedirectUri(adb2cOptions.RedirectUri)
+                .Build();
+            
+            var accounts = await confidentialClientApplication.GetAccountsAsync();
+            var account = accounts.FirstOrDefault();
+
+            var authenticationResult =
+                await confidentialClientApplication.AcquireTokenSilent(scope, account).ExecuteAsync();
+
             HttpClient client = new HttpClient();
             HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, apiEndpoint+id);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authenticationResult.AccessToken);
 
             HttpResponseMessage response = await client.SendAsync(request);
 
